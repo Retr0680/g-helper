@@ -15,7 +15,7 @@ namespace GHelper.Mode
 
         private int _cpuUV = 0;
         private int _igpuUV = 0;
-        private bool _ryzenPower = false;
+        private bool _ryzenPower = true;
 
         static System.Timers.Timer reapplyTimer = default!;
         static System.Timers.Timer modeToggleTimer = default!;
