@@ -4,26 +4,23 @@ namespace GHelper.Fan
 {
     public class FanSensorControl
     {
-        public const int DEFAULT_FAN_MIN = 18;
-        public const int DEFAULT_FAN_MAX = 58;
+        // Constants
+        private const int DEFAULT_FAN_MIN = 18;
+        private const int DEFAULT_FAN_MAX = 58;
+        private const int XGM_FAN_MAX = 72;
+        private const int INADEQUATE_MAX = 104;
+        private const int FAN_COUNT = 3;
 
-        public const int XGM_FAN_MAX = 72;
+    // Fields
+        private Fans fansForm;
+        private ModeControl modeControl;
+        private static int?[] measuredMax;
+        private static int sameCount = 0;
+        private static System.Timers.Timer timer;
+        private static int?[] _fanMax;
+        private static bool? _fanRpm;
 
-        public const int INADEQUATE_MAX = 104;
-
-        const int FAN_COUNT = 3;
-
-        Fans fansForm;
-        ModeControl modeControl = Program.modeControl;
-
-        static int[] measuredMax;
-        static int sameCount = 0;
-
-        static System.Timers.Timer timer = default!;
-
-        static int[] _fanMax = InitFanMax();
-        static bool _fanRpm = AppConfig.IsNotFalse("fan_rpm");
-
+    // Constructors
         public FanSensorControl(Fans fansForm)
         {
             this.fansForm = fansForm;
@@ -31,11 +28,11 @@ namespace GHelper.Fan
             timer.Elapsed += Timer_Elapsed;
         }
 
-        static int[] InitFanMax()
+    // Methods
+        private static int?[] InitFanMax()
         {
-            int[] defaultMax = GetDefaultMax();
-
-            return new int[3] {
+            int?[] defaultMax = GetDefaultMax();
+            return new int?[3] {
                 AppConfig.Get("fan_max_" + (int)AsusFan.CPU, defaultMax[(int)AsusFan.CPU]),
                 AppConfig.Get("fan_max_" + (int)AsusFan.GPU, defaultMax[(int)AsusFan.GPU]),
                 AppConfig.Get("fan_max_" + (int)AsusFan.Mid, defaultMax[(int)AsusFan.Mid])
@@ -99,7 +96,7 @@ namespace GHelper.Fan
             }
             set
             {
-                AppConfig.Set("fan_rpm", value ? 1 : 0);
+                AppConfig.Set("fan_rpm", value? 1 : 0);
                 _fanRpm = value;
             }
         }
