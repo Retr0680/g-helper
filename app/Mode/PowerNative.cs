@@ -72,10 +72,10 @@ namespace GHelper.Mode
         [DllImportAttribute("powrprof.dll", EntryPoint = "PowerSetActiveOverlayScheme")]
         public static extern uint PowerSetActiveOverlayScheme(Guid OverlaySchemeGuid);
 
-        const string POWER_SILENT = "961cc777-2547-4f9d-8174-7d86181b8a7a";
-        const string POWER_BALANCED = "00000000-0000-0000-0000-000000000000";
-        const string POWER_TURBO = "ded574b5-45a0-4f42-8737-46345c09c238";
-        const string POWER_BETTERPERFORMANCE = "ded574b5-45a0-4f42-8737-46345c09c238";
+        const string POWER_SILENT = "995e3ed6-3873-4b9f-8678-3d7595107bdf";
+        const string POWER_BALANCED = "92b69cb2-07a3-46f0-8619-d261b6f8de2f";
+        const string POWER_TURBO = "d705273a-fa0e-45a9-abd2-4f111267b9ec";
+        const string POWER_BETTERPERFORMANCE = "d705273a-fa0e-45a9-abd2-4f111267b9ec";
 
         static List<string> overlays = new() {
                 POWER_BALANCED,
@@ -171,7 +171,7 @@ namespace GHelper.Mode
         public static void SetBalancedPowerPlan()
         {
             Guid activeSchemeGuid = GetActiveScheme();
-            string balanced = "381b4222-f694-41f0-9685-ff5bb260df2e";
+            string balanced = "92b69cb2-07a3-46f0-8619-d261b6f8de2f";
 
             if (activeSchemeGuid.ToString() != balanced && !AppConfig.Is("skip_power_plan"))
             {
