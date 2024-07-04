@@ -51,6 +51,8 @@ namespace GHelper.Display
         public const int DefaultColorTemp = 50;
 
         public static bool forceVisual = false;
+        public static bool skipGamut = false;
+
         static VisualControl()
         {
             brightnessTimer.Elapsed += BrightnessTimerTimer_Elapsed;
@@ -96,14 +98,49 @@ namespace GHelper.Display
                 foreach (FileInfo icm in icms)
                 {
                     //Logger.WriteLine(icm.FullName);
-                    if (icm.Name.Contains("sRGB")) _modes.Add(isVivo ? SplendidGamut.VivoSRGB : SplendidGamut.sRGB, "Gamut: sRGB");
-                    if (icm.Name.Contains("DCIP3")) _modes.Add(isVivo ? SplendidGamut.VivoDCIP3 : SplendidGamut.DCIP3, "Gamut: DCIP3");
-                    if (icm.Name.Contains("DisplayP3")) _modes.Add(isVivo ? SplendidGamut.ViviDisplayP3 : SplendidGamut.DisplayP3, "Gamut: DisplayP3");
+                    
+                    if (icm.Name.Contains("sRGB"))
+                    {
+                        try
+                        {
+                            _modes.Add(isVivo ? SplendidGamut.VivoSRGB : SplendidGamut.sRGB, "Gamut: sRGB");
+                            Logger.WriteLine(icm.FullName + " sRGB");
+                        }
+                        catch 
+                        {
+                        }
+                    }
+
+                    if (icm.Name.Contains("DCIP3"))
+                    {
+                        try
+                        {
+                            _modes.Add(isVivo ? SplendidGamut.VivoDCIP3 : SplendidGamut.DCIP3, "Gamut: DCIP3");
+                            Logger.WriteLine(icm.FullName + " DCIP3");
+                        }
+                        catch
+                        {
+                        }
+                    }
+
+                    if (icm.Name.Contains("DisplayP3"))
+                    {
+                        try
+                        {
+                            _modes.Add(isVivo ? SplendidGamut.ViviDisplayP3 : SplendidGamut.DisplayP3, "Gamut: DisplayP3");
+                            Logger.WriteLine(icm.FullName + " DisplayP3");
+                        }
+                        catch
+                        {
+                        }
+                    }
                 }
                 return _modes;
             }
-            catch
+            catch (Exception ex)
             {
+                //Logger.WriteLine(ex.Message);
+                Logger.WriteLine(ex.ToString());
                 return _modes;
             }
 
@@ -169,6 +206,7 @@ namespace GHelper.Display
 
         public static void SetGamut(int mode = -1)
         {
+            if (skipGamut) return;
             if (mode < 0) mode = (int)GetDefaultGamut();
 
             AppConfig.Set("gamut", mode);
@@ -197,8 +235,9 @@ namespace GHelper.Display
             if (whiteBalance != DefaultColorTemp && !init) ProcessHelper.RunAsAdmin();
 
             int? balance;
-            
-            switch (mode) {
+
+            switch (mode)
+            {
                 case SplendidCommand.Eyecare:
                     balance = 2;
                     break;
@@ -296,10 +335,23 @@ namespace GHelper.Display
             brightnessTimer.Start();
 
             Program.settingsForm.VisualiseBrightness();
+            //if (brightness < 100) ResetGamut();
 
             return _brightness;
         }
 
+        public static void ResetGamut()
+        {
+            int defaultGamut = (int)GetDefaultGamut();
+
+            if (AppConfig.Get("gamut") != defaultGamut)
+            {
+                skipGamut = true;
+                AppConfig.Set("gamut", defaultGamut);
+                Program.settingsForm.VisualiseGamut();
+                skipGamut = false;
+            }
+        }
 
 
         public static void SetGamma(int brightness = 100)
