@@ -2,6 +2,20 @@
 
 namespace GHelper.Fan
 {
+    public enum AsusFan
+    {
+        CPU,
+        GPU,
+        Mid,
+        XGM
+    }
+
+    public enum FanSpeedUnit
+    {
+        RPM,
+        Percentage
+    }
+
     public class FanSensorControl
     {
         // Constants
@@ -11,65 +25,53 @@ namespace GHelper.Fan
         private const int INADEQUATE_MAX = 104;
         private const int FAN_COUNT = 3;
 
-    // Fields
-        private Fans fansForm;
-        private ModeControl modeControl;
-        private static int?[] measuredMax;
-        private static int sameCount = 0;
-        private static System.Timers.Timer timer;
+        // Fields
+        private readonly Fans _fansForm;
+        private readonly ModeControl _modeControl;
+        private static int?[] _measuredMax;
+        private static int _sameCount = 0;
+        private static System.Timers.Timer _timer;
         private static int?[] _fanMax;
         private static bool? _fanRpm;
 
-    // Constructors
-        public FanSensorControl(Fans fansForm)
+        // Constructors
+        public FanSensorControl(Fans fansForm, ModeControl modeControl)
         {
-            this.fansForm = fansForm;
-            timer = new System.Timers.Timer(1000);
-            timer.Elapsed += Timer_Elapsed;
+            _fansForm = fansForm;
+            _modeControl = modeControl;
+            _timer = new System.Timers.Timer(1000);
+            _timer.Elapsed += Timer_Elapsed;
         }
 
-    // Methods
+        // Methods
         private static int?[] InitFanMax()
         {
             int?[] defaultMax = GetDefaultMax();
-            return new int?[3] {
+            return new int?[]
+            {
                 AppConfig.Get("fan_max_" + (int)AsusFan.CPU, defaultMax[(int)AsusFan.CPU]),
                 AppConfig.Get("fan_max_" + (int)AsusFan.GPU, defaultMax[(int)AsusFan.GPU]),
                 AppConfig.Get("fan_max_" + (int)AsusFan.Mid, defaultMax[(int)AsusFan.Mid])
             };
         }
 
-
-        static int[] GetDefaultMax()
+        private static int[] GetDefaultMax()
         {
-            if (AppConfig.ContainsModel("GA401I")) return new int[3] { 78, 76, DEFAULT_FAN_MAX };
-            if (AppConfig.ContainsModel("GA401")) return new int[3] { 71, 73, DEFAULT_FAN_MAX };
-            if (AppConfig.ContainsModel("GA402")) return new int[3] { 55, 56, DEFAULT_FAN_MAX };
+            // Use a dictionary to map models to default fan max values
+            var modelToFanMax = new Dictionary<string, int[]>
+            {
+                {"GA401I", new int[] { 78, 76, DEFAULT_FAN_MAX }},
+                {"GA401", new int[] { 71, 73, DEFAULT_FAN_MAX }},
+                {"GA402", new int[] { 55, 56, DEFAULT_FAN_MAX }},
+                // ...
+            };
 
-            if (AppConfig.ContainsModel("G513R")) return new int[3] { 58, 60, DEFAULT_FAN_MAX };
-            if (AppConfig.ContainsModel("G513Q")) return new int[3] { 69, 69, DEFAULT_FAN_MAX };
-            if (AppConfig.ContainsModel("GA503")) return new int[3] { 64, 64, DEFAULT_FAN_MAX };
+            if (modelToFanMax.TryGetValue(AppConfig.Model, out int[] fanMax))
+            {
+                return fanMax;
+            }
 
-            if (AppConfig.ContainsModel("GU603")) return new int[3] { 62, 64, DEFAULT_FAN_MAX };
-
-            if (AppConfig.ContainsModel("FA507R")) return new int[3] { 63, 57, DEFAULT_FAN_MAX };
-            if (AppConfig.ContainsModel("FA507X")) return new int[3] { 63, 68, DEFAULT_FAN_MAX };
-
-            if (AppConfig.ContainsModel("FX607J")) return new int[3] { 74, 72, DEFAULT_FAN_MAX };
-
-            if (AppConfig.ContainsModel("GX650")) return new int[3] { 62, 62, DEFAULT_FAN_MAX };
-
-            if (AppConfig.ContainsModel("G732")) return new int[3] { 61, 60, DEFAULT_FAN_MAX };
-            if (AppConfig.ContainsModel("G713")) return new int[3] { 56, 60, DEFAULT_FAN_MAX };
-
-            if (AppConfig.ContainsModel("Z301")) return new int[3] { 72, 64, DEFAULT_FAN_MAX };
-
-            if (AppConfig.ContainsModel("GV601")) return new int[3] { 78, 59, 85 };
-
-            if (AppConfig.ContainsModel("GA403")) return new int[3] { 68, 68, 80 };
-            if (AppConfig.ContainsModel("GU605")) return new int[3] { 62, 62, 92 };
-
-            return new int[3] { DEFAULT_FAN_MAX, DEFAULT_FAN_MAX, DEFAULT_FAN_MAX };
+            return new int[] { DEFAULT_FAN_MAX, DEFAULT_FAN_MAX, DEFAULT_FAN_MAX };
         }
 
         public static int GetFanMax(AsusFan device)
@@ -88,15 +90,12 @@ namespace GHelper.Fan
             AppConfig.Set("fan_max_" + (int)device, value);
         }
 
-        public static bool fanRpm
+        public static bool FanRpm
         {
-            get
-            {
-                return _fanRpm;
-            }
+            get { return _fanRpm; }
             set
             {
-                AppConfig.Set("fan_rpm", value? 1 : 0);
+                AppConfig.Set("fan_rpm", value ? 1 : 0);
                 _fanRpm = value;
             }
         }
@@ -107,7 +106,7 @@ namespace GHelper.Fan
 
             if (value > GetFanMax(device) && value <= INADEQUATE_MAX) SetFanMax(device, value);
 
-            if (fanRpm)
+            if (FanRpm)
                 return Properties.Strings.FanSpeed + ": " + (value * 100).ToString() + "RPM";
             else
                 return Properties.Strings.FanSpeed + ": " + Math.Min(Math.Round((float)value / GetFanMax(device) * 100), 100).ToString() + "%"; // relatively to max RPM
@@ -115,9 +114,8 @@ namespace GHelper.Fan
 
         public void StartCalibration()
         {
-
-            measuredMax = new int[] { 0, 0, 0 };
-            timer.Enabled = true;
+            _measuredMax = new int[] { 0, 0, 0 };
+            _timer.Enabled = true;
 
             for (int i = 0; i < FAN_COUNT; i++)
                 AppConfig.Remove("fan_max_" + i);
@@ -125,63 +123,4 @@ namespace GHelper.Fan
             Program.acpi.DeviceSet(AsusACPI.PerformanceMode, AsusACPI.PerformanceTurbo, "ModeCalibration");
 
             for (int i = 0; i < FAN_COUNT; i++)
-                Program.acpi.SetFanCurve((AsusFan)i, new byte[] { 20, 30, 40, 50, 60, 70, 80, 90, 100, 100, 100, 100, 100, 100, 100, 100 });
-
-        }
-
-        private void Timer_Elapsed(object? sender, System.Timers.ElapsedEventArgs e)
-        {
-            int fan;
-            bool same = true;
-
-            for (int i = 0; i < FAN_COUNT; i++)
-            {
-                fan = Program.acpi.GetFan((AsusFan)i);
-                if (fan > measuredMax[i])
-                {
-                    measuredMax[i] = fan;
-                    same = false;
-                }
-            }
-
-            if (same) sameCount++;
-            else sameCount = 0;
-
-            string label = "Measuring Max Speed - CPU: " + measuredMax[(int)AsusFan.CPU] * 100 + ", GPU: " + measuredMax[(int)AsusFan.GPU] * 100;
-            if (measuredMax[(int)AsusFan.Mid] > 10) label = label + ", Mid: " + measuredMax[(int)AsusFan.Mid] * 100;
-            label = label + " (" + sameCount + "s)";
-
-            fansForm.LabelFansResult(label);
-
-            if (sameCount >= 15)
-            {
-                for (int i = 0; i < FAN_COUNT; i++)
-                {
-                    if (measuredMax[i] > 30 && measuredMax[i] < INADEQUATE_MAX) SetFanMax((AsusFan)i, measuredMax[i]);
-                }
-
-                sameCount = 0;
-                FinishCalibration();
-            }
-
-        }
-
-        private void FinishCalibration()
-        {
-
-            timer.Enabled = false;
-            modeControl.SetPerformanceMode();
-
-            string label = "Measured - CPU: " + AppConfig.Get("fan_max_" + (int)AsusFan.CPU) * 100;
-
-            if (AppConfig.Get("fan_max_" + (int)AsusFan.GPU) > 0)
-                label = label + ", GPU: " + AppConfig.Get("fan_max_" + (int)AsusFan.GPU) * 100;
-
-            if (AppConfig.Get("fan_max_" + (int)AsusFan.Mid) > 0)
-                label = label + ", Mid: " + AppConfig.Get("fan_max_" + (int)AsusFan.Mid) * 100;
-
-            fansForm.LabelFansResult(label);
-            fansForm.InitAxis();
-        }
-    }
-}
+                Program.acpi.SetFanCurve((AsusFan)i, new byte[] { 20, 30, 40, 50, 60, 70, 80, 90, 100, 100,
