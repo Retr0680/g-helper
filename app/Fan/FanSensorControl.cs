@@ -55,6 +55,8 @@ namespace GHelper.Fan
 
             if (AppConfig.ContainsModel("GU603")) return new int[3] { 62, 64, DEFAULT_FAN_MAX };
 
+            if (AppConfig.ContainsModel("FA506QM")) return new int[3] { 62, 64, DEFAULT_FAN_MAX };
+
             if (AppConfig.ContainsModel("FA507R")) return new int[3] { 63, 57, DEFAULT_FAN_MAX };
             if (AppConfig.ContainsModel("FA507X")) return new int[3] { 63, 68, DEFAULT_FAN_MAX };
 
