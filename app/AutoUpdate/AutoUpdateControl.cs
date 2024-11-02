@@ -36,7 +36,13 @@ namespace GHelper.AutoUpdate
 
         public void LoadReleases()
         {
-            Process.Start(new ProcessStartInfo(versionUrl) { UseShellExecute = true });
+            try
+            {
+                Process.Start(new ProcessStartInfo(versionUrl) { UseShellExecute = true });
+            } catch (Exception ex)
+            {
+                Logger.WriteLine("Failed to open releases page:" + ex.Message);
+            }
         }
 
         async void CheckForUpdatesAsync()
@@ -139,7 +145,7 @@ namespace GHelper.AutoUpdate
                     Logger.WriteLine(ex.Message);
                 }
 
-                Environment.Exit(0);
+                Application.Exit();
             }
 
         }

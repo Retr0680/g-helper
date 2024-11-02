@@ -30,6 +30,7 @@ namespace GHelper
             labelScaling.Text = Properties.Strings.ScalingQuality;
             labelRotation.Text = Properties.Strings.ImageRotation;
             labelContrastTitle.Text = Properties.Strings.Contrast;
+            labelGammaTitle.Text = Properties.Strings.Brightness;
             buttonPicture.Text = Properties.Strings.PictureGif;
             buttonReset.Text = Properties.Strings.Reset;
 
@@ -80,7 +81,7 @@ namespace GHelper
         {
             AppConfig.Set("matrix_contrast", trackContrast.Value);
             AppConfig.Set("matrix_gamma", trackGamma.Value);
-            SetMatrixPicture();
+            SetMatrixPicture(false);
         }
 
 

@@ -76,7 +76,8 @@ namespace GHelper
                     customActions.Remove("fnlock");
                     break;
                 case "fnv":
-                    customActions[""] = EMPTY;
+                    customActions[""] = Properties.Strings.VisualMode;
+                    customActions.Remove("visual");
                     break;
                 case "fne":
                     customActions[""] = "Calculator";
@@ -203,7 +204,7 @@ namespace GHelper
                 labelFNF4.Visible = comboFNF4.Visible = textFNF4.Visible = false;
             }
 
-            if (AppConfig.NoAura())
+            if (AppConfig.MediaKeys())
             {
                 labelFNF4.Visible = comboFNF4.Visible = textFNF4.Visible = false;
             }
@@ -504,7 +505,10 @@ namespace GHelper
                 return;
             }
 
-            eCoresMax = Math.Max(8, eCoresMax);
+            if (eCoresMax == 0) eCoresMax = 8;
+            if (pCoresMax == 0) pCoresMax = 6;
+
+            eCoresMax = Math.Max(4, eCoresMax);
             pCoresMax = Math.Max(6, pCoresMax);
 
             panelCores.Visible = true;
@@ -709,7 +713,10 @@ namespace GHelper
         {
             using (var amdControl = new AmdGpuControl())
             {
-                amdControl.SetVariBright(checkVariBright.Checked ? 1 : 0);
+                if (NvidiaSmi.GetDisplayActiveStatus()) return; // Skip if Nvidia GPU is active
+                var status = checkVariBright.Checked ? 1 : 0;
+                var result = amdControl.SetVariBright(status);
+                Logger.WriteLine($"VariBright {status}: {result}");
                 ProcessHelper.KillByName("RadeonSoftware");
             }
         }

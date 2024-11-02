@@ -53,6 +53,13 @@ namespace GHelper
             string action = "";
             if (args.Length > 0) action = args[0];
 
+            if (action == "charge")
+            {
+                BatteryLimit();
+                Application.Exit();
+                return;
+            }
+
             string language = AppConfig.GetString("language");
 
             if (language != null && language.Length > 0)
@@ -69,6 +76,10 @@ namespace GHelper
             Logger.WriteLine("------------");
             Logger.WriteLine("App launched: " + AppConfig.GetModel() + " :" + Assembly.GetExecutingAssembly().GetName().Version.ToString() + CultureInfo.CurrentUICulture + (ProcessHelper.IsUserAdministrator() ? "." : ""));
 
+            var startCount = AppConfig.Get("start_count") + 1;
+            AppConfig.Set("start_count", startCount);
+            Logger.WriteLine("Start Count: " + startCount);
+
             acpi = new AsusACPI();
 
             if (!acpi.IsConnected() && AppConfig.IsASUS())
@@ -82,6 +93,8 @@ namespace GHelper
                 Application.Exit();
                 return;
             }
+
+            ProcessHelper.KillByName("ASUSSmartDisplayControl");
 
             Application.EnableVisualStyles();
 
@@ -199,7 +212,7 @@ namespace GHelper
                     if (settingsForm.matrixForm is not null && settingsForm.matrixForm.Text != "")
                         settingsForm.matrixForm.InitTheme();
 
-                    if (settingsForm.handheldForm is not null && settingsForm.handheldForm.Text != "") 
+                    if (settingsForm.handheldForm is not null && settingsForm.handheldForm.Text != "")
                         settingsForm.handheldForm.InitTheme();
 
                     break;
@@ -218,7 +231,12 @@ namespace GHelper
             Logger.WriteLine("AutoSetting for " + isPlugged.ToString());
 
             BatteryControl.AutoBattery(init);
-            if (init) screenControl.InitMiniled();
+            
+            if (init)
+            {
+                screenControl.InitMiniled();
+                InputDispatcher.InitScreenpad();
+            }
 
             inputDispatcher.Init();
 
@@ -237,10 +255,13 @@ namespace GHelper
             if (AppConfig.IsAlly())
             {
                 allyControl.Init();
-            } else
+            }
+            else
             {
                 settingsForm.AutoKeyboard();
             }
+
+            VisualControl.InitBrightness();
 
             return true;
         }
@@ -262,6 +283,7 @@ namespace GHelper
             }
 
             if (SystemInformation.PowerStatus.PowerLineStatus == isPlugged) return;
+            if (AppConfig.Is("disable_power_event")) return;
             SetAutoModes(true);
         }
 
@@ -282,19 +304,22 @@ namespace GHelper
             }
             else
             {
+                var screen = Screen.PrimaryScreen;
+                if (screen is null) screen = Screen.FromControl(settingsForm);
 
-                settingsForm.Left = Screen.FromControl(settingsForm).WorkingArea.Width - 10 - settingsForm.Width;
-                settingsForm.Top = Screen.FromControl(settingsForm).WorkingArea.Height - 10 - settingsForm.Height;
+                settingsForm.Location = screen.WorkingArea.Location;
+                settingsForm.Left = screen.WorkingArea.Width - 10 - settingsForm.Width;
+                settingsForm.Top = screen.WorkingArea.Height - 10 - settingsForm.Height;
 
                 settingsForm.Show();
                 settingsForm.Activate();
 
-                settingsForm.Left = Screen.FromControl(settingsForm).WorkingArea.Width - 10 - settingsForm.Width;
-                
+                settingsForm.Left = screen.WorkingArea.Width - 10 - settingsForm.Width;
+
                 if (AppConfig.IsAlly())
-                    settingsForm.Top = Math.Max(10, Screen.FromControl(settingsForm).Bounds.Height - 110 - settingsForm.Height);
+                    settingsForm.Top = Math.Max(10, screen.Bounds.Height - 110 - settingsForm.Height);
                 else
-                    settingsForm.Top = Screen.FromControl(settingsForm).WorkingArea.Height - 10 - settingsForm.Height;
+                    settingsForm.Top = screen.WorkingArea.Height - 10 - settingsForm.Height;
 
                 settingsForm.VisualiseGPUMode();
             }
@@ -319,6 +344,23 @@ namespace GHelper
             Application.Exit();
         }
 
+        static void BatteryLimit()
+        {
+            try
+            {
+                int limit = AppConfig.Get("charge_limit");
+                if (limit > 0 && limit < 100)
+                {
+                    Logger.WriteLine($"------- Startup Battery Limit {limit} -------");
+                    acpi = new AsusACPI();
+                    acpi.DeviceSet(AsusACPI.BatteryLimit, limit, "Limit");
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.WriteLine("Startup Battery Limit Error: " + ex.Message);
+            }
+        }
 
     }
 }

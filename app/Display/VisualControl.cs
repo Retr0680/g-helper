@@ -1,4 +1,5 @@
 ﻿using GHelper.Helpers;
+using Microsoft.Win32;
 using System.Management;
 
 namespace GHelper.Display
@@ -37,6 +38,7 @@ namespace GHelper.Display
         Cinema = 25,
         Vivid = 13,
         Eyecare = 17,
+        Disabled = 18,
     }
     public static class VisualControl
     {
@@ -44,6 +46,7 @@ namespace GHelper.Display
 
         private static int _brightness = 100;
         private static bool _init = true;
+        private static bool _download = true;
         private static string? _splendidPath = null;
 
         private static System.Timers.Timer brightnessTimer = new System.Timers.Timer(200);
@@ -70,13 +73,13 @@ namespace GHelper.Display
 
         public static SplendidGamut GetDefaultGamut()
         {
-            return AppConfig.IsVivoZenbook() ? SplendidGamut.VivoNative : SplendidGamut.Native;
+            return AppConfig.IsVivoZenPro() ? SplendidGamut.VivoNative : SplendidGamut.Native;
         }
 
         public static Dictionary<SplendidGamut, string> GetGamutModes()
         {
 
-            bool isVivo = AppConfig.IsVivoZenbook();
+            bool isVivo = AppConfig.IsVivoZenPro();
 
             Dictionary<SplendidGamut, string> _modes = new Dictionary<SplendidGamut, string>();
 
@@ -98,7 +101,7 @@ namespace GHelper.Display
                 foreach (FileInfo icm in icms)
                 {
                     //Logger.WriteLine(icm.FullName);
-                    
+
                     if (icm.Name.Contains("sRGB"))
                     {
                         try
@@ -106,7 +109,7 @@ namespace GHelper.Display
                             _modes.Add(isVivo ? SplendidGamut.VivoSRGB : SplendidGamut.sRGB, "Gamut: sRGB");
                             Logger.WriteLine(icm.FullName + " sRGB");
                         }
-                        catch 
+                        catch
                         {
                         }
                     }
@@ -148,13 +151,13 @@ namespace GHelper.Display
 
         public static SplendidCommand GetDefaultVisualMode()
         {
-            return AppConfig.IsVivoZenbook() ? SplendidCommand.VivoNormal : SplendidCommand.Default;
+            return AppConfig.IsVivoZenPro() ? SplendidCommand.VivoNormal : SplendidCommand.Default;
         }
 
         public static Dictionary<SplendidCommand, string> GetVisualModes()
         {
 
-            if (AppConfig.IsVivoZenbook())
+            if (AppConfig.IsVivoZenPro())
             {
                 return new Dictionary<SplendidCommand, string>
                 {
@@ -174,7 +177,8 @@ namespace GHelper.Display
                 { SplendidCommand.FPS, "FPS"},
                 { SplendidCommand.Cinema, "Cinema"},
                 { SplendidCommand.Vivid, "Vivid" },
-                { SplendidCommand.Eyecare, "Eyecare"}
+                { SplendidCommand.Eyecare, "Eyecare"},
+                { SplendidCommand.Disabled, "Disabled"}
             };
         }
 
@@ -204,6 +208,20 @@ namespace GHelper.Display
             };
         }
 
+        const string GameVisualKey = @"HKEY_CURRENT_USER\Software\ASUS\ARMOURY CRATE Service\GameVisual";
+        const string GameVisualValue = "ActiveGVStatus";
+
+        public static bool IsEnabled()
+        {
+            var status = (int?)Registry.GetValue(GameVisualKey, GameVisualValue, 1);
+            return status > 0;
+        }
+
+        public static void SetRegStatus(int status = 1)
+        {
+            Registry.SetValue(GameVisualKey, GameVisualValue, status, RegistryValueKind.DWord);
+        }
+
         public static void SetGamut(int mode = -1)
         {
             if (skipGamut) return;
@@ -211,9 +229,19 @@ namespace GHelper.Display
 
             AppConfig.Set("gamut", mode);
 
-            if (RunSplendid(SplendidCommand.GamutMode, 0, mode)) return;
-
-            if (_init)
+            var result = RunSplendid(SplendidCommand.GamutMode, 0, mode);
+            if (result == 0) return;
+            if (result == -1)
+            {
+                Logger.WriteLine("Gamut setting refused, reverting.");
+                RunSplendid(SplendidCommand.GamutMode, 0, (int)GetDefaultGamut());
+                if (ProcessHelper.IsUserAdministrator() && _download)
+                {
+                    _download = false;
+                    ColorProfileHelper.InstallProfile();
+                }
+            }
+            if (result == 1 && _init)
             {
                 _init = false;
                 RunSplendid(SplendidCommand.Init);
@@ -224,7 +252,7 @@ namespace GHelper.Display
         public static void SetVisual(SplendidCommand mode = SplendidCommand.Default, int whiteBalance = DefaultColorTemp, bool init = false)
         {
             if (mode == SplendidCommand.None) return;
-            if (mode == SplendidCommand.Default && init) return; // Skip default setting on init
+            if ((mode == SplendidCommand.Disabled || mode == SplendidCommand.Default || mode == SplendidCommand.VivoNormal) && init) return; // Skip default setting on init
 
             if (!forceVisual && ScreenCCD.GetHDRStatus(true)) return;
             if (!forceVisual && ScreenNative.GetRefreshRate(ScreenNative.FindLaptopScreen(true)) < 0) return;
@@ -234,12 +262,16 @@ namespace GHelper.Display
 
             if (whiteBalance != DefaultColorTemp && !init) ProcessHelper.RunAsAdmin();
 
-            int? balance;
+            int? balance = null;
+            int command = 0;
 
             switch (mode)
             {
+                case SplendidCommand.Disabled:
+                    command = 2;
+                    break;
                 case SplendidCommand.Eyecare:
-                    balance = 2;
+                    balance = 4;
                     break;
                 case SplendidCommand.VivoNormal:
                 case SplendidCommand.VivoVivid:
@@ -253,9 +285,19 @@ namespace GHelper.Display
                     break;
             }
 
-            if (RunSplendid(mode, 0, balance)) return;
-
-            if (_init)
+            int result = RunSplendid(mode, command, balance);
+            if (result == 0) return;
+            if (result == -1)
+            {
+                Logger.WriteLine("Visual mode setting refused, reverting.");
+                RunSplendid(SplendidCommand.Default, 0, DefaultColorTemp);
+                if (ProcessHelper.IsUserAdministrator() && _download)
+                {
+                    _download = false;
+                    ColorProfileHelper.InstallProfile();
+                }
+            }
+            if (result == 1 && _init)
             {
                 _init = false;
                 RunSplendid(SplendidCommand.Init);
@@ -288,20 +330,26 @@ namespace GHelper.Display
             return _splendidPath;
         }
 
-        private static bool RunSplendid(SplendidCommand command, int? param1 = null, int? param2 = null)
+        private static int RunSplendid(SplendidCommand command, int? param1 = null, int? param2 = null)
         {
             var splendid = GetSplendidPath();
-            bool isVivo = AppConfig.IsVivoZenbook();
+            bool isVivo = AppConfig.IsVivoZenPro();
             bool isSplenddid = File.Exists(splendid);
 
             if (isSplenddid)
             {
                 if (command == SplendidCommand.DimmingVisual && isVivo) command = SplendidCommand.DimmingVivo;
                 var result = ProcessHelper.RunCMD(splendid, (int)command + " " + param1 + " " + param2);
-                if (result.Contains("file not exist") || (result.Length == 0 && !isVivo)) return false;
+                if (result.Contains("file not exist") || (result.Length == 0 && !isVivo)) return 1;
+                if (result.Contains("return code: -1")) return -1;
+                if (result.Contains("Visual is disabled"))
+                {
+                    SetRegStatus(1);
+                    return 1;
+                }
             }
 
-            return true;
+            return 0;
         }
 
         private static void BrightnessTimerTimer_Elapsed(object? sender, System.Timers.ElapsedEventArgs e)
@@ -309,28 +357,46 @@ namespace GHelper.Display
             brightnessTimer.Stop();
 
 
-            if (RunSplendid(SplendidCommand.DimmingVisual, 0, (int)(40 + _brightness * 0.6))) return;
+            if (RunSplendid(SplendidCommand.DimmingVisual, 0, (int)(40 + _brightness * 0.6)) == 0) return;
 
             if (_init)
             {
                 _init = false;
                 RunSplendid(SplendidCommand.Init);
                 RunSplendid(SplendidCommand.Init, 4);
-                if (RunSplendid(SplendidCommand.DimmingVisual, 0, (int)(40 + _brightness * 0.6))) return;
+                if (RunSplendid(SplendidCommand.DimmingVisual, 0, (int)(40 + _brightness * 0.6)) == 0) return;
             }
 
             // GammaRamp Fallback
             SetGamma(_brightness);
         }
 
+        public static void InitBrightness()
+        {
+            if (!AppConfig.IsOLED()) return;
+            if (!AppConfig.SaveDimming()) return;
+
+            int brightness = GetBrightness();
+            if (brightness >= 0) SetBrightness(brightness);
+        }
+
+        private static bool IsOnBattery()
+        {
+            return AppConfig.SaveDimming() && SystemInformation.PowerStatus.PowerLineStatus != PowerLineStatus.Online;
+        }
+
+        public static int GetBrightness()
+        {
+            return AppConfig.Get(IsOnBattery() ? "brightness_battery" : "brightness", 100);
+        }
+
         public static int SetBrightness(int brightness = -1, int delta = 0)
         {
             if (!AppConfig.IsOLED()) return -1;
-
-            if (brightness < 0) brightness = AppConfig.Get("brightness", 100);
+            if (brightness < 0) brightness = GetBrightness();
 
             _brightness = Math.Max(0, Math.Min(100, brightness + delta));
-            AppConfig.Set("brightness", _brightness);
+            AppConfig.Set(IsOnBattery() ? "brightness_battery" : "brightness", _brightness);
 
             brightnessTimer.Start();
 

@@ -93,6 +93,7 @@ namespace GHelper
             buttonMatrix.Text = Properties.Strings.PictureGif;
             buttonQuit.Text = Properties.Strings.Quit;
             buttonUpdates.Text = Properties.Strings.Updates;
+            buttonDonate.Text = Properties.Strings.Donate;
 
             buttonController.Text = Properties.Strings.Controller;
             labelAlly.Text = Properties.Strings.AllyController;
@@ -234,6 +235,7 @@ namespace GHelper
 
             labelCharge.MouseEnter += PanelBattery_MouseEnter;
             labelCharge.MouseLeave += PanelBattery_MouseLeave;
+            labelBattery.Click += LabelBattery_Click;
 
             buttonPeripheral1.Click += ButtonPeripheral_Click;
             buttonPeripheral2.Click += ButtonPeripheral_Click;
@@ -270,6 +272,12 @@ namespace GHelper
             labelCharge.Click += LabelCharge_Click;
 
             buttonDonate.Click += ButtonDonate_Click;
+            
+            if (AppConfig.Get("start_count") > 10 && !AppConfig.Is("donate_click"))
+            {
+                buttonDonate.BorderColor = colorTurbo;
+                buttonDonate.Badge = true;
+            }
 
             labelDynamicLighting.Click += LabelDynamicLighting_Click;
 
@@ -277,8 +285,16 @@ namespace GHelper
             InitVisual();
         }
 
+        private void LabelBattery_Click(object? sender, EventArgs e)
+        {
+            HardwareControl.chargeWatt = !HardwareControl.chargeWatt;
+            RefreshSensors(true);
+        }
+
         private void ButtonDonate_Click(object? sender, EventArgs e)
         {
+            AppConfig.Set("donate_click", 1);
+            buttonDonate.Badge = false;
             Process.Start(new ProcessStartInfo("https://github.com/seerge/g-helper/wiki/Support-Project") { UseShellExecute = true });
         }
 
@@ -444,7 +460,7 @@ namespace GHelper
             Invoke(delegate
             {
                 sliderGammaIgnore = true;
-                sliderGamma.Value = AppConfig.Get("brightness", 100);
+                sliderGamma.Value = VisualControl.GetBrightness();
                 labelGamma.Text = sliderGamma.Value + "%";
                 sliderGammaIgnore = false;
             });
@@ -834,7 +850,7 @@ namespace GHelper
 
         private void Button60Hz_MouseHover(object? sender, EventArgs e)
         {
-            labelTipScreen.Text = Properties.Strings.MinRefreshTooltip;
+            labelTipScreen.Text = Properties.Strings.MinRefreshTooltip.Replace("60", ScreenControl.MIN_RATE.ToString());
         }
 
         private void ButtonScreen_MouseLeave(object? sender, EventArgs e)
@@ -844,7 +860,7 @@ namespace GHelper
 
         private void ButtonScreenAuto_MouseHover(object? sender, EventArgs e)
         {
-            labelTipScreen.Text = Properties.Strings.AutoRefreshTooltip;
+            labelTipScreen.Text = Properties.Strings.AutoRefreshTooltip.Replace("60", ScreenControl.MIN_RATE.ToString());
         }
 
         private void ButtonUltimate_MouseHover(object? sender, EventArgs e)
@@ -1199,7 +1215,7 @@ namespace GHelper
         private void Button60Hz_Click(object? sender, EventArgs e)
         {
             AppConfig.Set("screen_auto", 0);
-            screenControl.SetScreen(60, 0);
+            screenControl.SetScreen(ScreenControl.MIN_RATE, 0);
         }
 
 
@@ -1230,16 +1246,18 @@ namespace GHelper
             {
                 buttonScreenAuto.Activated = true;
             }
-            else if (frequency == 60)
+            else if (frequency == ScreenControl.MIN_RATE)
             {
                 button60Hz.Activated = true;
             }
-            else if (frequency > 60)
+            else if (frequency > ScreenControl.MIN_RATE)
             {
                 button120Hz.Activated = true;
             }
 
-            if (maxFrequency > 60)
+            button60Hz.Text = ScreenControl.MIN_RATE + "Hz";
+
+            if (maxFrequency > ScreenControl.MIN_RATE)
             {
                 button120Hz.Text = maxFrequency.ToString() + "Hz" + (overdriveSetting ? " + OD" : "");
                 panelScreen.Visible = true;
@@ -1411,7 +1429,9 @@ namespace GHelper
                 cpuTemp = ": " + Math.Round((decimal)HardwareControl.cpuTemp).ToString() + "°C";
 
             if (HardwareControl.batteryCapacity > 0)
-                charge = Properties.Strings.BatteryCharge + ": " + Math.Round(HardwareControl.batteryCapacity, 1) + "% ";
+            {
+                charge = Properties.Strings.BatteryCharge + ": " + HardwareControl.batteryCharge;
+            }
 
             if (HardwareControl.batteryRate < 0)
                 battery = Properties.Strings.Discharging + ": " + Math.Round(-(decimal)HardwareControl.batteryRate, 1).ToString() + "W";
@@ -1524,13 +1544,13 @@ namespace GHelper
         public void AutoKeyboard()
         {
 
-            InputDispatcher.SetBacklightAuto(true);
-
             if (!AppConfig.Is("skip_aura"))
             {
                 Aura.ApplyPower();
                 Aura.ApplyAura();
             }
+
+            InputDispatcher.SetBacklightAuto(true);
 
             if (Program.acpi.IsXGConnected())
                 XGM.Light(AppConfig.Is("xmg_light"));
@@ -1766,7 +1786,7 @@ namespace GHelper
 
         public void VisualiseBatteryFull()
         {
-            if (AppConfig.Is("charge_full"))
+            if (BatteryControl.chargeFull)
             {
                 buttonBatteryFull.BackColor = colorStandard;
                 buttonBatteryFull.ForeColor = SystemColors.ControlLightLight;

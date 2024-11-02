@@ -15,8 +15,14 @@ namespace GHelper.Input
         System.Timers.Timer timer = new System.Timers.Timer(1000);
         public static bool backlightActivity = true;
 
-        public static Keys keyProfile = Keys.F5;
-        public static Keys keyApp = Keys.F12;
+        public static Keys keyProfile = (Keys)AppConfig.Get("keybind_profile", (int)Keys.F5);
+        public static Keys keyApp = (Keys)AppConfig.Get("keybind_app", (int)Keys.F12);
+
+        public static Keys keyProfile0 = (Keys)AppConfig.Get("keybind_profile_0", (int)Keys.F17);
+        public static Keys keyProfile1 = (Keys)AppConfig.Get("keybind_profile_1", (int)Keys.F18);
+        public static Keys keyProfile2 = (Keys)AppConfig.Get("keybind_profile_2", (int)Keys.F16);
+        public static Keys keyProfile3 = (Keys)AppConfig.Get("keybind_profile_3", (int)Keys.F19);
+        public static Keys keyProfile4 = (Keys)AppConfig.Get("keybind_profile_4", (int)Keys.F20);
 
         static ModeControl modeControl = Program.modeControl;
         static ScreenControl screenControl = new ScreenControl();
@@ -85,8 +91,7 @@ namespace GHelper.Input
 
             InitBacklightTimer();
 
-            if (AppConfig.IsVivoZenbook())
-                Program.acpi.DeviceSet(AsusACPI.FnLock, AppConfig.Is("fn_lock") ^ AppConfig.IsInvertedFNLock() ? 1 : 0, "FnLock");
+            if (AppConfig.IsHardwareFnLock()) HardwareFnLock(AppConfig.Is("fn_lock"));
 
         }
 
@@ -102,10 +107,6 @@ namespace GHelper.Input
         {
             hook.UnregisterAll();
 
-            // CTRL + SHIFT + F5 to cycle profiles
-            if (AppConfig.Get("keybind_profile") != -1) keyProfile = (Keys)AppConfig.Get("keybind_profile");
-            if (AppConfig.Get("keybind_app") != -1) keyApp = (Keys)AppConfig.Get("keybind_app");
-
             string actionM1 = AppConfig.GetString("m1");
             string actionM2 = AppConfig.GetString("m2");
 
@@ -119,18 +120,22 @@ namespace GHelper.Input
 
             if (!AppConfig.Is("skip_hotkeys"))
             {
+                if (AppConfig.IsDUO())
+                {
+                    hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F7);
+                    hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F8);
+                }
+
                 hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F13);
 
                 hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F14);
                 hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F15);
 
-                hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F16);
-                hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F17);
-                hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F18);
-                hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F19);
-                hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F20);
-
-
+                hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, keyProfile0);
+                hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, keyProfile1);
+                hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, keyProfile2);
+                hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, keyProfile3);
+                hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, keyProfile4);
 
                 hook.RegisterHotKey(ModifierKeys.Control, Keys.VolumeDown);
                 hook.RegisterHotKey(ModifierKeys.Control, Keys.VolumeUp);
@@ -155,7 +160,7 @@ namespace GHelper.Input
 
             // FN-Lock group
 
-            if (AppConfig.Is("fn_lock") && !AppConfig.IsVivoZenbook())
+            if (AppConfig.Is("fn_lock") && !AppConfig.IsHardwareFnLock())
                 for (Keys i = Keys.F1; i <= Keys.F11; i++) hook.RegisterHotKey(ModifierKeys.None, i);
 
             // Arrow-lock group
@@ -218,6 +223,9 @@ namespace GHelper.Input
                 case 3:
                     KeyboardHook.KeyKeyKeyPress((Keys)hexKeys[0], (Keys)hexKeys[1], (Keys)hexKeys[2]);
                     break;
+                case 4:
+                    KeyboardHook.KeyKeyKeyKeyPress((Keys)hexKeys[0], (Keys)hexKeys[1], (Keys)hexKeys[2], (Keys)hexKeys[3]);
+                    break;
                 default:
                     LaunchProcess(command);
                     break;
@@ -226,24 +234,31 @@ namespace GHelper.Input
         }
 
 
-        static void SetBrightness(int delta)
+        static void SetBrightness(bool up, bool hotkey = false)
         {
             int brightness = -1;
 
             if (isTUF) brightness = ScreenBrightness.Get();
-            if (AppConfig.SwappedBrightness()) delta = -delta;
+            if (AppConfig.SwappedBrightness() && !hotkey) up = !up;
 
-            Program.acpi.DeviceSet(AsusACPI.UniversalControl, delta > 0 ? AsusACPI.Brightness_Up : AsusACPI.Brightness_Down, "Brightness");
+            int step = AppConfig.Get("brightness_step", 10);
+            if (step != 10)
+            {
+                Program.toast.RunToast(ScreenBrightness.Adjust(up ? step : -step) + "%", up ? ToastIcon.BrightnessUp : ToastIcon.BrightnessDown);
+                return;
+            }
+
+            Program.acpi.DeviceSet(AsusACPI.UniversalControl, up ? AsusACPI.Brightness_Up : AsusACPI.Brightness_Down, "Brightness");
 
             if (isTUF)
             {
                 if (AppConfig.SwappedBrightness()) return;
-                if (delta < 0 && brightness <= 0) return;
-                if (delta > 0 && brightness >= 100) return;
+                if (!up && brightness <= 0) return;
+                if (up && brightness >= 100) return;
 
                 Thread.Sleep(100);
                 if (brightness == ScreenBrightness.Get())
-                    Program.toast.RunToast(ScreenBrightness.Adjust(delta) + "%", (delta < 0) ? ToastIcon.BrightnessDown : ToastIcon.BrightnessUp);
+                    Program.toast.RunToast(ScreenBrightness.Adjust(up ? step : -step) + "%", up ? ToastIcon.BrightnessUp : ToastIcon.BrightnessDown);
             }
 
         }
@@ -273,7 +288,44 @@ namespace GHelper.Input
                             KeyboardHook.KeyPress(Keys.VolumeUp);
                             return;
                         case Keys.F4:
-                            KeyProcess("m3");
+                            ToggleMic();
+                            return;
+                    }
+                }
+
+                if (AppConfig.IsProArt())
+                {
+                    switch (e.Key)
+                    {
+                        case Keys.F2:
+                            KeyboardHook.KeyPress(Keys.VolumeDown);
+                            return;
+                        case Keys.F3:
+                            KeyboardHook.KeyPress(Keys.VolumeUp);
+                            return;
+                        case Keys.F4:
+                            HandleEvent(199); // Backlight cycle
+                            return;
+                        case Keys.F5:
+                            SetBrightness(false);
+                            return;
+                        case Keys.F6:
+                            SetBrightness(true);
+                            return;
+                        case Keys.F7:
+                            KeyboardHook.KeyKeyPress(Keys.LWin, Keys.P);
+                            return;
+                        case Keys.F8:
+                            HandleEvent(126); // Emojis
+                            return;
+                        case Keys.F9:
+                            ToggleMic(); // MicMute
+                            return;
+                        case Keys.F10:
+                            HandleEvent(133); // Camera Toggle
+                            return;
+                        case Keys.F11:
+                            KeyboardHook.KeyPress(Keys.Snapshot); // PrintScreen
                             return;
                     }
                 }
@@ -288,7 +340,7 @@ namespace GHelper.Input
                     }
                 }
 
-                if (AppConfig.NoAura())
+                if (AppConfig.MediaKeys())
                 {
                     switch (e.Key)
                     {
@@ -326,10 +378,10 @@ namespace GHelper.Input
                         KeyboardHook.KeyPress(Keys.Snapshot);
                         break;
                     case Keys.F7:
-                        SetBrightness(-10);
+                        SetBrightness(false);
                         break;
                     case Keys.F8:
-                        SetBrightness(+10);
+                        SetBrightness(true);
                         break;
                     case Keys.F9:
                         KeyboardHook.KeyKeyPress(Keys.LWin, Keys.P);
@@ -368,20 +420,26 @@ namespace GHelper.Input
             {
                 if (e.Key == keyProfile) modeControl.CyclePerformanceMode();
                 if (e.Key == keyApp) Program.SettingsToggle();
-                if (e.Key == Keys.F20) KeyProcess("m3");
+                if (e.Key == Keys.F20) ToggleMic();
             }
 
             if (e.Modifier == (ModifierKeys.Control | ModifierKeys.Shift | ModifierKeys.Alt))
             {
                 if (e.Key == keyProfile) modeControl.CyclePerformanceMode(true);
+                
+                if (e.Key == keyProfile0) modeControl.SetPerformanceMode(0, true);
+                if (e.Key == keyProfile1) modeControl.SetPerformanceMode(1, true);
+                if (e.Key == keyProfile2) modeControl.SetPerformanceMode(2, true);
+                if (e.Key == keyProfile3) modeControl.SetPerformanceMode(3, true);
+                if (e.Key == keyProfile4) modeControl.SetPerformanceMode(4, true);
 
                 switch (e.Key)
                 {
                     case Keys.F1:
-                        SetBrightness(-10);
+                        SetBrightness(false);
                         break;
                     case Keys.F2:
-                        SetBrightness(10);
+                        SetBrightness(true);
                         break;
                     case Keys.F3:
                         Program.settingsForm.gpuControl.ToggleXGM(true);
@@ -389,29 +447,22 @@ namespace GHelper.Input
                     case Keys.F4:
                         Program.settingsForm.BeginInvoke(Program.settingsForm.allyControl.ToggleModeHotkey);
                         break;
+                    case Keys.F7:
+                        SetScreenpad(-10);
+                        break;
+                    case Keys.F8:
+                        SetScreenpad(10);
+                        break;
                     case Keys.F13:
                         ToggleScreenRate();
                         break;
                     case Keys.F14:
+                        Program.toast.RunToast(Properties.Strings.EcoMode);
                         Program.settingsForm.gpuControl.SetGPUMode(AsusACPI.GPUModeEco);
                         break;
                     case Keys.F15:
+                        Program.toast.RunToast(Properties.Strings.StandardMode);
                         Program.settingsForm.gpuControl.SetGPUMode(AsusACPI.GPUModeStandard);
-                        break;
-                    case Keys.F16:
-                        modeControl.SetPerformanceMode(2, true);
-                        break;
-                    case Keys.F17:
-                        modeControl.SetPerformanceMode(0, true);
-                        break;
-                    case Keys.F18:
-                        modeControl.SetPerformanceMode(1, true);
-                        break;
-                    case Keys.F19:
-                        modeControl.SetPerformanceMode(3, true);
-                        break;
-                    case Keys.F20:
-                        modeControl.SetPerformanceMode(4, true);
                         break;
                 }
             }
@@ -423,11 +474,11 @@ namespace GHelper.Input
                 {
                     case Keys.VolumeDown:
                         // Screen brightness down on CTRL+VolDown
-                        SetBrightness(-10);
+                        SetBrightness(false);
                         break;
                     case Keys.VolumeUp:
                         // Screen brightness up on CTRL+VolUp
-                        SetBrightness(+10);
+                        SetBrightness(true);
                         break;
                 }
             }
@@ -465,6 +516,8 @@ namespace GHelper.Input
                     action = "micmute";
                 if (name == "fnc")
                     action = "fnlock";
+                if (name == "fnv")
+                    action = "visual";
                 if (name == "fne")
                     action = "calculator";
             }
@@ -519,15 +572,13 @@ namespace GHelper.Input
                     ToggleFnLock();
                     break;
                 case "micmute":
-                    bool muteStatus = Audio.ToggleMute();
-                    Program.toast.RunToast(muteStatus ? Properties.Strings.Muted : Properties.Strings.Unmuted, muteStatus ? ToastIcon.MicrophoneMute : ToastIcon.Microphone);
-                    if (AppConfig.IsVivoZenbook()) Program.acpi.DeviceSet(AsusACPI.MicMuteLed, muteStatus ? 1 : 0, "MicmuteLed");
+                    ToggleMic();
                     break;
                 case "brightness_up":
-                    SetBrightness(+10);
+                    SetBrightness(true);
                     break;
                 case "brightness_down":
-                    SetBrightness(-10);
+                    SetBrightness(false);
                     break;
                 case "screenpad_up":
                     SetScreenpad(10);
@@ -545,13 +596,25 @@ namespace GHelper.Input
                     Program.settingsForm.BeginInvoke(Program.settingsForm.allyControl.ToggleModeHotkey);
                     break;
                 case "touchscreen":
-                    var touchscreenStatus = TouchscreenHelper.ToggleTouchscreen();
-                    if (touchscreenStatus is not null)
-                        Program.toast.RunToast(Properties.Strings.Touchscreen + " " + ((bool)touchscreenStatus ? Properties.Strings.On : Properties.Strings.Off), ToastIcon.Touchpad);
+                    var status = !TouchscreenHelper.GetStatus();
+                    Logger.WriteLine("Touchscreen status: " + status);
+                    if (status is not null)
+                    {
+                        Program.toast.RunToast(Properties.Strings.Touchscreen + " " + ((bool)status ? Properties.Strings.On : Properties.Strings.Off), ToastIcon.Touchpad);
+                        TouchscreenHelper.ToggleTouchscreen((bool)status);
+                    }
                     break;
                 default:
                     break;
             }
+        }
+
+
+        static void ToggleMic()
+        {
+            bool muteStatus = Audio.ToggleMute();
+            Program.toast.RunToast(muteStatus ? Properties.Strings.Muted : Properties.Strings.Unmuted, muteStatus ? ToastIcon.MicrophoneMute : ToastIcon.Microphone);
+            if (AppConfig.IsVivoZenbook()) Program.acpi.DeviceSet(AsusACPI.MicMuteLed, muteStatus ? 1 : 0, "MicmuteLed");
         }
 
         static bool GetTouchpadState()
@@ -589,13 +652,19 @@ namespace GHelper.Input
             Program.toast.RunToast("Arrow-Lock " + (arLock == 1 ? Properties.Strings.On : Properties.Strings.Off), ToastIcon.FnLock);
         }
 
+        public static void HardwareFnLock(bool fnLock)
+        {
+            Program.acpi.DeviceSet(AsusACPI.FnLock, fnLock ^ AppConfig.IsInvertedFNLock() ? 1 : 0, "FnLock");
+            AsusHid.WriteInput([AsusHid.INPUT_ID, 0xD0, 0x4E, fnLock ? (byte)0x00 : (byte)0x01], "USB FnLock");
+        }
+
         public static void ToggleFnLock()
         {
             bool fnLock = !AppConfig.Is("fn_lock");
             AppConfig.Set("fn_lock", fnLock ? 1 : 0);
 
-            if (AppConfig.IsVivoZenbook())
-                Program.acpi.DeviceSet(AsusACPI.FnLock, fnLock ^ AppConfig.IsInvertedFNLock() ? 1 : 0, "FnLock");
+            if (AppConfig.IsHardwareFnLock()) 
+                HardwareFnLock(fnLock);
             else
                 Program.settingsForm.BeginInvoke(Program.inputDispatcher.RegisterKeys);
 
@@ -655,6 +724,7 @@ namespace GHelper.Input
                 switch (EventID)
                 {
                     case 134:     // FN + F12 ON OLD DEVICES
+                    case 139:     // ProArt F12
                         KeyProcess("m4");
                         return;
                     case 124:    // M3
@@ -666,13 +736,12 @@ namespace GHelper.Input
                     case 55:    // Arconym
                         KeyProcess("m6");
                         return;
-                    case 136:    // FN + F12
-                        if (!AppConfig.IsNoAirplaneMode()) Program.acpi.DeviceSet(AsusACPI.UniversalControl, AsusACPI.Airplane, "Airplane");
-                        return;
                     case 181:    // FN + Numpad Enter
                         KeyProcess("fne");
                         return;
                     case 174:   // FN+F5
+                    case 153:   // FN+F5 OLD MODELS
+                    case 157:   // Zenbook DUO FN+F
                         modeControl.CyclePerformanceMode(Control.ModifierKeys == Keys.Shift);
                         return;
                     case 179:   // FN+F4
@@ -684,12 +753,6 @@ namespace GHelper.Input
                         return;
                     case 158:   // Fn + C
                         KeyProcess("fnc");
-                        return;
-                    case 78:    // Fn + ESC
-                        ToggleFnLock();
-                        return;
-                    case 75:    // Fn + ESC
-                        ToggleArrowLock();
                         return;
                     case 189: // Tablet mode
                         TabletMode();
@@ -740,7 +803,7 @@ namespace GHelper.Input
                     }
                     else
                     {
-                        Program.acpi.DeviceSet(AsusACPI.UniversalControl, AsusACPI.Brightness_Down, "Brightness");
+                        SetBrightness(false, true);
                     }
                     break;
                 case 32: // FN+F8
@@ -755,7 +818,7 @@ namespace GHelper.Input
                     }
                     else
                     {
-                        Program.acpi.DeviceSet(AsusACPI.UniversalControl, AsusACPI.Brightness_Up, "Brightness");
+                        SetBrightness(true, true);
                     }
                     break;
                 case 133: // Camera Toggle
@@ -776,6 +839,18 @@ namespace GHelper.Input
                 case 51:    // Fn+F6 on old TUFs
                 case 53:    // Fn+F6 on GA-502DU model
                     NativeMethods.TurnOffScreen();
+                    return;
+                case 126:    // Fn+F8 emojis popup
+                    KeyboardHook.KeyKeyPress(Keys.LWin, Keys.OemSemicolon);
+                    return;
+                case 78:    // Fn + ESC
+                    ToggleFnLock();
+                    return;
+                case 75:    // Fn + Arrow Lock
+                    ToggleArrowLock();
+                    return;
+                case 136:    // FN + F12
+                    if (!AppConfig.IsNoAirplaneMode()) Program.acpi.DeviceSet(AsusACPI.UniversalControl, AsusACPI.Airplane, "Airplane");
                     return;
 
 
@@ -887,7 +962,7 @@ namespace GHelper.Input
 
         private static System.Threading.Timer screenpadActionTimer;
         private static int screenpadBrightnessToSet;
-        public static void ApplyScreenpadAction(int brightness, bool doToggle = false)
+        public static void ApplyScreenpadAction(int brightness, bool instant = true)
         {
             var delay = AppConfig.Get("screenpad_delay", 1500);
 
@@ -895,11 +970,12 @@ namespace GHelper.Input
             Action<int> action = (b) =>
             {
                 if (b >= 0) Program.acpi.DeviceSet(AsusACPI.ScreenPadToggle, 1, "ScreenpadOn");
-                Program.acpi.DeviceSet(AsusACPI.ScreenPadBrightness, Math.Max(b * 255 / 100, 0), "Screenpad");
+                int[] brightnessValues = [0, 4, 9, 14, 21, 32, 48, 73, 111, 169, 255];
+                Program.acpi.DeviceSet(AsusACPI.ScreenPadBrightness, brightnessValues[Math.Min(brightnessValues.Length - 1, Math.Max(0, b / 10))], "Screenpad");
                 if (b < 0) Program.acpi.DeviceSet(AsusACPI.ScreenPadToggle, 0, "ScreenpadOff");
             };
 
-            if(delay <= 0 || (brightness > 0 && brightness < 100 && doToggle == false)) //instant action
+            if(delay <= 0 || instant) //instant action
             {
                 action(brightness);
             }
@@ -925,23 +1001,29 @@ namespace GHelper.Input
                 if (brightness < 0) brightness = 100;
                 else if (brightness >= 100) brightness = 0;
                 else brightness = -10;
+                ApplyScreenpadAction(brightness, false);
             }
             else
             {
-                brightness = Math.Max(Math.Min(100, brightness + delta), -10);
+                brightness = Math.Max(Math.Min(100, brightness + delta), 0);
+                ApplyScreenpadAction(brightness);
             }
 
             AppConfig.Set("screenpad", brightness);
 
-            ApplyScreenpadAction(brightness);
-
             string toast;
 
             if (brightness < 0) toast = "Off";
-            else if (brightness == 0) toast = "Hidden";
             else toast = brightness.ToString() + "%";
 
             Program.toast.RunToast($"Screen Pad {toast}", delta > 0 ? ToastIcon.BrightnessUp : ToastIcon.BrightnessDown);
+        }
+
+        public static void InitScreenpad()
+        {
+            if (!AppConfig.IsDUO()) return;
+            int brightness = AppConfig.Get("screenpad");
+            if (brightness >= 0) ApplyScreenpadAction(brightness);
         }
 
         static void LaunchProcess(string command = "")
