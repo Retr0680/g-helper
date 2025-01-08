@@ -14,6 +14,7 @@ namespace GHelper.Input
     {
         System.Timers.Timer timer = new System.Timers.Timer(1000);
         public static bool backlightActivity = true;
+        public static bool lidClose = false;
 
         public static Keys keyProfile = (Keys)AppConfig.Get("keybind_profile", (int)Keys.F5);
         public static Keys keyApp = (Keys)AppConfig.Get("keybind_app", (int)Keys.F12);
@@ -23,6 +24,7 @@ namespace GHelper.Input
         public static Keys keyProfile2 = (Keys)AppConfig.Get("keybind_profile_2", (int)Keys.F16);
         public static Keys keyProfile3 = (Keys)AppConfig.Get("keybind_profile_3", (int)Keys.F19);
         public static Keys keyProfile4 = (Keys)AppConfig.Get("keybind_profile_4", (int)Keys.F20);
+        public static Keys keyXGM = (Keys)AppConfig.Get("keybind_xgm", (int)Keys.F21);
 
         static ModeControl modeControl = Program.modeControl;
         static ScreenControl screenControl = new ScreenControl();
@@ -85,9 +87,14 @@ namespace GHelper.Input
             Program.acpi.DeviceInit();
 
             if (!OptimizationService.IsRunning())
+            {
+                Program.acpi.DeviceGet(AsusACPI.CameraShutter);
                 listener = new KeyboardListener(HandleEvent);
+            }
             else
+            {
                 Logger.WriteLine("Optimization service is running");
+            }
 
             InitBacklightTimer();
 
@@ -136,6 +143,7 @@ namespace GHelper.Input
                 hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, keyProfile2);
                 hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, keyProfile3);
                 hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, keyProfile4);
+                hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, keyXGM);
 
                 hook.RegisterHotKey(ModifierKeys.Control, Keys.VolumeDown);
                 hook.RegisterHotKey(ModifierKeys.Control, Keys.VolumeUp);
@@ -156,6 +164,7 @@ namespace GHelper.Input
                 hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F2);
                 hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F3);
                 hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F4);
+                hook.RegisterHotKey(ModifierKeys.Shift | ModifierKeys.Control | ModifierKeys.Alt, Keys.F6);
             }
 
             // FN-Lock group
@@ -426,12 +435,13 @@ namespace GHelper.Input
             if (e.Modifier == (ModifierKeys.Control | ModifierKeys.Shift | ModifierKeys.Alt))
             {
                 if (e.Key == keyProfile) modeControl.CyclePerformanceMode(true);
-                
+
                 if (e.Key == keyProfile0) modeControl.SetPerformanceMode(0, true);
                 if (e.Key == keyProfile1) modeControl.SetPerformanceMode(1, true);
                 if (e.Key == keyProfile2) modeControl.SetPerformanceMode(2, true);
                 if (e.Key == keyProfile3) modeControl.SetPerformanceMode(3, true);
                 if (e.Key == keyProfile4) modeControl.SetPerformanceMode(4, true);
+                if (e.Key == keyXGM) Program.settingsForm.gpuControl.ToggleXGM(true);
 
                 switch (e.Key)
                 {
@@ -446,6 +456,9 @@ namespace GHelper.Input
                         break;
                     case Keys.F4:
                         Program.settingsForm.BeginInvoke(Program.settingsForm.allyControl.ToggleModeHotkey);
+                        break;
+                    case Keys.F6:
+                        ToggleTouchScreen();
                         break;
                     case Keys.F7:
                         SetScreenpad(-10);
@@ -596,19 +609,24 @@ namespace GHelper.Input
                     Program.settingsForm.BeginInvoke(Program.settingsForm.allyControl.ToggleModeHotkey);
                     break;
                 case "touchscreen":
-                    var status = !TouchscreenHelper.GetStatus();
-                    Logger.WriteLine("Touchscreen status: " + status);
-                    if (status is not null)
-                    {
-                        Program.toast.RunToast(Properties.Strings.Touchscreen + " " + ((bool)status ? Properties.Strings.On : Properties.Strings.Off), ToastIcon.Touchpad);
-                        TouchscreenHelper.ToggleTouchscreen((bool)status);
-                    }
+                    ToggleTouchScreen();
                     break;
                 default:
                     break;
             }
         }
 
+
+        static void ToggleTouchScreen()
+        {
+            var status = !TouchscreenHelper.GetStatus();
+            Logger.WriteLine("Touchscreen status: " + status);
+            if (status is not null)
+            {
+                Program.toast.RunToast(Properties.Strings.Touchscreen + " " + ((bool)status ? Properties.Strings.On : Properties.Strings.Off), ToastIcon.Touchpad);
+                TouchscreenHelper.ToggleTouchscreen((bool)status);
+            }
+        }
 
         static void ToggleMic()
         {
@@ -663,7 +681,7 @@ namespace GHelper.Input
             bool fnLock = !AppConfig.Is("fn_lock");
             AppConfig.Set("fn_lock", fnLock ? 1 : 0);
 
-            if (AppConfig.IsHardwareFnLock()) 
+            if (AppConfig.IsHardwareFnLock())
                 HardwareFnLock(fnLock);
             else
                 Program.settingsForm.BeginInvoke(Program.inputDispatcher.RegisterKeys);
@@ -872,8 +890,21 @@ namespace GHelper.Input
             return Math.Max(Math.Min(3, backlight), 0);
         }
 
+        public static void AutoKeyboard()
+        {
+            if (AppConfig.HasTabletMode()) TabletMode();
+            if (lidClose || AppConfig.Is("skip_aura")) return;
+
+            Aura.Init();
+            Aura.ApplyPower();
+            Aura.ApplyAura();
+            SetBacklightAuto(true);
+        }
+
+
         public static void SetBacklightAuto(bool init = false)
         {
+            if (lidClose) return;
             if (init) Aura.Init();
             Aura.ApplyBrightness(GetBacklight(), "Auto", init);
         }
@@ -931,33 +962,55 @@ namespace GHelper.Input
 
         public static void ToggleCamera()
         {
-            if (!ProcessHelper.IsUserAdministrator()) return;
+            int cameraShutter = Program.acpi.DeviceGet(AsusACPI.CameraShutter);
 
-            string CameraRegistryKeyPath = @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam";
-            string CameraRegistryValueName = "Value";
-
-            try
+            if (cameraShutter == 0)
             {
-                var status = (string?)Registry.GetValue(CameraRegistryKeyPath, CameraRegistryValueName, "");
+                Program.acpi.DeviceSet(AsusACPI.CameraShutter, 1, "CameraShutterOn");
+                Program.toast.RunToast($"Camera Off");
+            }
+            else if (cameraShutter == 1)
+            {
+                Program.acpi.DeviceSet(AsusACPI.CameraShutter, 0, "CameraShutterOff");
+                Program.toast.RunToast($"Camera On");
+            }
+            else if (cameraShutter == 262144)
+            {
+                Program.toast.RunToast($"Camera Off");
+            }
+            else if (cameraShutter == 262145)
+            {
+                Program.toast.RunToast($"Camera On");
+            }
+            else
+            {
+                if (!ProcessHelper.IsUserAdministrator()) return;
 
-                if (status == "Allow") status = "Deny";
-                else if (status == "Deny") status = "Allow";
-                else
+                string CameraRegistryKeyPath = @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\webcam";
+                string CameraRegistryValueName = "Value";
+
+                try
                 {
-                    Logger.WriteLine("Unknown camera status");
-                    return;
+                    var status = (string?)Registry.GetValue(CameraRegistryKeyPath, CameraRegistryValueName, "");
+
+                    if (status == "Allow") status = "Deny";
+                    else if (status == "Deny") status = "Allow";
+                    else
+                    {
+                        Logger.WriteLine("Unknown camera status");
+                        return;
+                    }
+
+                    Registry.SetValue(CameraRegistryKeyPath, CameraRegistryValueName, status, RegistryValueKind.String);
+                    Program.acpi.DeviceSet(AsusACPI.CameraLed, (status == "Deny" ? 1 : 0), "Camera");
+                    Program.toast.RunToast($"Camera " + (status == "Deny" ? "Off" : "On"));
+
                 }
-
-                Registry.SetValue(CameraRegistryKeyPath, CameraRegistryValueName, status, RegistryValueKind.String);
-                Program.acpi.DeviceSet(AsusACPI.CameraLed, (status == "Deny" ? 1 : 0), "Camera");
-                Program.toast.RunToast($"Camera " + (status == "Deny" ? "Off" : "On"));
-
+                catch (Exception ex)
+                {
+                    Logger.WriteLine(ex.ToString());
+                }
             }
-            catch (Exception ex)
-            {
-                Logger.WriteLine(ex.ToString());
-            }
-
         }
 
         private static System.Threading.Timer screenpadActionTimer;
@@ -975,7 +1028,7 @@ namespace GHelper.Input
                 if (b < 0) Program.acpi.DeviceSet(AsusACPI.ScreenPadToggle, 0, "ScreenpadOff");
             };
 
-            if(delay <= 0 || instant) //instant action
+            if (delay <= 0 || instant) //instant action
             {
                 action(brightness);
             }
@@ -1024,6 +1077,21 @@ namespace GHelper.Input
             if (!AppConfig.IsDUO()) return;
             int brightness = AppConfig.Get("screenpad");
             if (brightness >= 0) ApplyScreenpadAction(brightness);
+        }
+
+        public static void SetStatusLED(bool status)
+        {
+            Program.acpi.DeviceSet(AsusACPI.StatusLed, status ? 7 : 0, "StatusLED");
+        }
+
+        public static void InitStatusLed()
+        {
+            if (AppConfig.IsAutoStatusLed()) SetStatusLED(true);
+        }
+
+        public static void ShutdownStatusLed()
+        {
+            if (AppConfig.IsAutoStatusLed()) SetStatusLED(false);
         }
 
         static void LaunchProcess(string command = "")

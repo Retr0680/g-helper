@@ -83,6 +83,8 @@ public class AsusACPI
     public const uint ScreenMiniled2 = 0x0005002E;
     public const uint ScreenFHD = 0x0005001C;
 
+    public const uint ScreenOptimalBrightness = 0x0005002A;
+
     public const uint DevsCPUFan = 0x00110022;
     public const uint DevsGPUFan = 0x00110023;
 
@@ -129,6 +131,7 @@ public class AsusACPI
     public const int ScreenPadToggle = 0x00050031;
     public const int ScreenPadBrightness = 0x00050032;
 
+    public const int CameraShutter = 0x00060078;
     public const int CameraLed = 0x00060079;
     public const int StatusLed = 0x000600C2;
 
