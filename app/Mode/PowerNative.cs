@@ -78,6 +78,7 @@ namespace GHelper.Mode
 
         const string PLAN_BALANCED = "381b4222-f694-41f0-9685-ff5bb260df2e";
         const string PLAN_HIGH_PERFORMANCE = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c";
+        const string PLAN_ULTIMATE_PERFORMACE = "e9a42b02-d5df-448d-aa00-03f14749eb61";
 
         static List<string> overlays = new() {
                 POWER_BALANCED,
@@ -90,7 +91,8 @@ namespace GHelper.Mode
                 { POWER_SILENT, "Best Power Efficiency" },
                 { POWER_BALANCED, "Balanced" },
                 { POWER_TURBO, "Best Performance" },
-                { PLAN_HIGH_PERFORMANCE, "High Performance Plan"},
+                { PLAN_HIGH_PERFORMANCE, "High Performance" },
+                { PLAN_ULTIMATE_PERFORMACE, "Ultimate Performance" },
             };
         static Guid GetActiveScheme()
         {
@@ -139,6 +141,26 @@ namespace GHelper.Mode
             PowerSetActiveScheme(IntPtr.Zero, activeSchemeGuid);
 
             Logger.WriteLine("Boost " + boost);
+        }
+
+        public static sting GetPowerMode()
+        {
+            if (GetActiveScheme().ToString() == PLAN_ULTIMATE_PERFORMACE) return PLAN_ULTIMATE_PERFORMACE;
+            PowerGetEffectiveOverlayScheme(out Guid activeScheme);
+            return activeScheme.ToString();
+        }
+
+        public static void  SetPowerMode(string scheme)
+        {
+            if (scheme == PLAN_ULTIMATE_PERFORMACE)
+            {
+                SetPowerPlan(scheme);
+                return;
+            }
+            else
+            {
+                // Power plann from config 
+            }
         }
 
         public static string GetPowerMode()
