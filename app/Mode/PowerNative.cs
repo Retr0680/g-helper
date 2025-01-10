@@ -1,371 +1,133 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Collections.Generic;
+using System.Runtime.InteropServices;
 
 namespace GHelper.Mode
 {
     internal class PowerNative
     {
+        // DLL Imports
         [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
-        static extern UInt32 PowerWriteDCValueIndex(IntPtr RootPowerKey,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid SchemeGuid,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid SubGroupOfPowerSettingsGuid,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid PowerSettingGuid,
-            int AcValueIndex);
+        private static extern uint PowerWriteDCValueIndex(IntPtr RootPowerKey, Guid SchemeGuid, Guid SubGroupOfPowerSettingsGuid, Guid PowerSettingGuid, int AcValueIndex);
 
         [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
-        static extern UInt32 PowerWriteACValueIndex(IntPtr RootPowerKey,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid SchemeGuid,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid SubGroupOfPowerSettingsGuid,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid PowerSettingGuid,
-            int AcValueIndex);
+        private static extern uint PowerWriteACValueIndex(IntPtr RootPowerKey, Guid SchemeGuid, Guid SubGroupOfPowerSettingsGuid, Guid PowerSettingGuid, int AcValueIndex);
 
         [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
-        static extern UInt32 PowerReadACValueIndex(IntPtr RootPowerKey,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid SchemeGuid,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid SubGroupOfPowerSettingsGuid,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid PowerSettingGuid,
-            out IntPtr AcValueIndex
-            );
+        private static extern uint PowerReadACValueIndex(IntPtr RootPowerKey, Guid SchemeGuid, Guid SubGroupOfPowerSettingsGuid, Guid PowerSettingGuid, out int AcValueIndex);
 
         [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
-        static extern UInt32 PowerReadDCValueIndex(IntPtr RootPowerKey,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid SchemeGuid,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid SubGroupOfPowerSettingsGuid,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid PowerSettingGuid,
-            out IntPtr AcValueIndex
-            );
+        private static extern uint PowerSetActiveScheme(IntPtr RootPowerKey, Guid SchemeGuid);
 
+        [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
+        private static extern uint PowerGetActiveScheme(IntPtr UserPowerKey, out IntPtr ActivePolicyGuid);
 
         [DllImport("powrprof.dll")]
-        static extern uint PowerReadACValue(
-            IntPtr RootPowerKey,
-            Guid SchemeGuid,
-            Guid SubGroupOfPowerSettingGuid,
-            Guid PowerSettingGuid,
-            ref int Type,
-            ref IntPtr Buffer,
-            ref uint BufferSize
-            );
+        private static extern uint PowerGetEffectiveOverlayScheme(out Guid EffectiveOverlayGuid);
 
+        [DllImport("powrprof.dll")]
+        private static extern uint PowerSetActiveOverlayScheme(Guid OverlaySchemeGuid);
 
-        [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
-        static extern UInt32 PowerSetActiveScheme(IntPtr RootPowerKey,
-            [MarshalAs(UnmanagedType.LPStruct)] Guid SchemeGuid);
+        // Constants
+        private static readonly Guid GUID_CPU = new("54533251-82BE-4824-96C1-47B60B740D00");
+        private static readonly Guid GUID_BOOST = new("BE337238-0D82-4146-A960-4F3749D470C7");
+        private static readonly string POWER_SILENT = "961CC777-2547-4F9D-8174-7D86181B8A7A";
+        private static readonly string POWER_BALANCED = "00000000-0000-0000-0000-000000000000";
+        private static readonly string POWER_TURBO = "DED574B5-45A0-4F42-8737-46345C09C238";
+        private static readonly string PLAN_BALANCED = "381B4222-F694-41F0-9685-FF5BB260DF2E";
+        private static readonly string PLAN_HIGH_PERFORMANCE = "8C5E7FDA-E8BF-4A96-9A85-A6E23A8C635C";
+        private static readonly string PLAN_ULTIMATE_PERFORMACE = "E9A42B02-D5DF-448D-AA00-03F14749EB61";
 
-        [DllImport("PowrProf.dll", CharSet = CharSet.Unicode)]
-        static extern UInt32 PowerGetActiveScheme(IntPtr UserPowerKey, out IntPtr ActivePolicyGuid);
-
-        static readonly Guid GUID_CPU = new Guid("54533251-82be-4824-96c1-47b60b740d00");
-        static readonly Guid GUID_BOOST = new Guid("be337238-0d82-4146-a960-4f3749d470c7");
-
-        private static Guid GUID_SLEEP_SUBGROUP = new Guid("238c9fa8-0aad-41ed-83f4-97be242c8f20");
-        private static Guid GUID_HIBERNATEIDLE = new Guid("9d7815a6-7ee4-497e-8888-515a05f02364");
-
-        private static Guid GUID_SYSTEM_BUTTON_SUBGROUP = new Guid("4f971e89-eebd-4455-a8de-9e59040e7347");
-        private static Guid GUID_LIDACTION = new Guid("5CA83367-6E45-459F-A27B-476B1D01C936");
-
-        [DllImportAttribute("powrprof.dll", EntryPoint = "PowerGetActualOverlayScheme")]
-        public static extern uint PowerGetActualOverlayScheme(out Guid ActualOverlayGuid);
-
-        [DllImportAttribute("powrprof.dll", EntryPoint = "PowerGetEffectiveOverlayScheme")]
-        public static extern uint PowerGetEffectiveOverlayScheme(out Guid EffectiveOverlayGuid);
-
-        [DllImportAttribute("powrprof.dll", EntryPoint = "PowerSetActiveOverlayScheme")]
-        public static extern uint PowerSetActiveOverlayScheme(Guid OverlaySchemeGuid);
-
-        const string POWER_SILENT = "961cc777-2547-4f9d-8174-7d86181b8a7a";
-        const string POWER_BALANCED = "00000000-0000-0000-0000-000000000000";
-        const string POWER_TURBO = "ded574b5-45a0-4f42-8737-46345c09c238";
-
-        const string PLAN_BALANCED = "381b4222-f694-41f0-9685-ff5bb260df2e";
-        const string PLAN_HIGH_PERFORMANCE = "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c";
-        const string PLAN_ULTIMATE_PERFORMACE = "e9a42b02-d5df-448d-aa00-03f14749eb61";
-
-        static List<string> overlays = new() {
-                POWER_BALANCED,
-                POWER_TURBO,
-                POWER_SILENT,
-            };
-
-        public static Dictionary<string, string> powerModes = new Dictionary<string, string>
-            {
-                { POWER_SILENT, "Best Power Efficiency" },
-                { POWER_BALANCED, "Balanced" },
-                { POWER_TURBO, "Best Performance" },
-                { PLAN_HIGH_PERFORMANCE, "High Performance" },
-                { PLAN_ULTIMATE_PERFORMACE, "Ultimate Performance" },
-            };
-        static Guid GetActiveScheme()
+        private static readonly List<string> Overlays = new()
         {
-            IntPtr pActiveSchemeGuid;
-            var hr = PowerGetActiveScheme(IntPtr.Zero, out pActiveSchemeGuid);
-            Guid activeSchemeGuid = (Guid)Marshal.PtrToStructure(pActiveSchemeGuid, typeof(Guid));
+            POWER_BALANCED,
+            POWER_TURBO,
+            POWER_SILENT
+        };
+
+        private static readonly Dictionary<string, string> PowerModes = new()
+        {
+            { POWER_SILENT, "Best Power Efficiency" },
+            { POWER_BALANCED, "Balanced" },
+            { POWER_TURBO, "Best Performance" },
+            { PLAN_HIGH_PERFORMANCE, "High Performance" },
+            { PLAN_ULTIMATE_PERFORMACE, "Ultimate Performance" }
+        };
+
+        // Retrieve the active power scheme GUID
+        private static Guid GetActiveScheme()
+        {
+            PowerGetActiveScheme(IntPtr.Zero, out IntPtr activeSchemeGuidPtr);
+            var activeSchemeGuid = (Guid)Marshal.PtrToStructure(activeSchemeGuidPtr, typeof(Guid));
             return activeSchemeGuid;
         }
 
+        // Get CPU boost index
         public static int GetCPUBoost()
         {
-            IntPtr AcValueIndex;
             Guid activeSchemeGuid = GetActiveScheme();
-
-            UInt32 value = PowerReadACValueIndex(IntPtr.Zero,
-                 activeSchemeGuid,
-                 GUID_CPU,
-                 GUID_BOOST, out AcValueIndex);
-
-            return AcValueIndex.ToInt32();
-
+            PowerReadACValueIndex(IntPtr.Zero, activeSchemeGuid, GUID_CPU, GUID_BOOST, out int acValueIndex);
+            return acValueIndex;
         }
 
+        // Set CPU boost index
         public static void SetCPUBoost(int boost = 0)
         {
-            Guid activeSchemeGuid = GetActiveScheme();
-
             if (boost == GetCPUBoost()) return;
 
-            var hrAC = PowerWriteACValueIndex(
-                 IntPtr.Zero,
-                 activeSchemeGuid,
-                 GUID_CPU,
-                 GUID_BOOST,
-                 boost);
-
+            Guid activeSchemeGuid = GetActiveScheme();
+            PowerWriteACValueIndex(IntPtr.Zero, activeSchemeGuid, GUID_CPU, GUID_BOOST, boost);
+            PowerWriteDCValueIndex(IntPtr.Zero, activeSchemeGuid, GUID_CPU, GUID_BOOST, boost);
             PowerSetActiveScheme(IntPtr.Zero, activeSchemeGuid);
-
-            var hrDC = PowerWriteDCValueIndex(
-                 IntPtr.Zero,
-                 activeSchemeGuid,
-                 GUID_CPU,
-                 GUID_BOOST,
-                 boost);
-
-            PowerSetActiveScheme(IntPtr.Zero, activeSchemeGuid);
-
-            Logger.WriteLine("Boost " + boost);
         }
 
-        public static sting GetPowerMode()
+        // Get the current power mode
+        public static string GetPowerMode()
         {
             if (GetActiveScheme().ToString() == PLAN_ULTIMATE_PERFORMACE) return PLAN_ULTIMATE_PERFORMACE;
+
             PowerGetEffectiveOverlayScheme(out Guid activeScheme);
             return activeScheme.ToString();
         }
 
-        public static void  SetPowerMode(string scheme)
+        // Set power mode
+        public static void SetPowerMode(string scheme)
         {
+            if (string.IsNullOrEmpty(scheme)) scheme = PLAN_BALANCED;
+
             if (scheme == PLAN_ULTIMATE_PERFORMACE)
             {
                 SetPowerPlan(scheme);
                 return;
             }
-            else
+
+            if (Overlays.Contains(scheme))
             {
-                // Power plann from config 
+                Guid schemeGuid = new(scheme);
+                PowerSetActiveOverlayScheme(schemeGuid);
             }
-        }
-
-        public static string GetPowerMode()
-        {
-            if (GetActiveScheme().ToString() == PLAN_HIGH_PERFORMANCE) return PLAN_HIGH_PERFORMANCE;
-            PowerGetEffectiveOverlayScheme(out Guid activeScheme);
-            return activeScheme.ToString();
-        }
-
-        public static void SetPowerMode(string scheme)
-        {
-
-            if (scheme == PLAN_HIGH_PERFORMANCE)
+            else
             {
                 SetPowerPlan(scheme);
-                return;
             }
-            else
-            {
-                // Power plan from config or defaulting to balanced
-                SetPowerPlan(AppConfig.GetModeString("scheme"));
-            }
-
-            if (!overlays.Contains(scheme)) return;
-
-            Guid guidScheme = new Guid(scheme);
-
-            uint status = PowerGetEffectiveOverlayScheme(out Guid activeScheme);
-
-            if (GetBatterySaverStatus())
-            {
-                Logger.WriteLine("Battery Saver detected");
-                return;
-            }
-
-            if (status != 0 || activeScheme != guidScheme)
-            {
-                status = PowerSetActiveOverlayScheme(guidScheme);
-                Logger.WriteLine("Power Mode " + activeScheme + " -> " + scheme + ":" + (status == 0 ? "OK" : status));
-            }
-
         }
 
+        // Set power plan
         public static void SetPowerPlan(string scheme)
         {
-            // Skipping power modes
-            if (overlays.Contains(scheme)) return;
+            if (Overlays.Contains(scheme)) return;
 
-            if (scheme is null) scheme = PLAN_BALANCED;
-            var activeScheme = GetActiveScheme().ToString();
-            if (activeScheme == scheme) return;
-
-            uint status = PowerSetActiveScheme(IntPtr.Zero, new Guid(scheme));
-            Logger.WriteLine($"Power Plan {activeScheme} -> {scheme} :" + (status == 0 ? "OK" : status));
+            Guid schemeGuid = new(scheme);
+            PowerSetActiveScheme(IntPtr.Zero, schemeGuid);
         }
 
-        public static string GetDefaultPowerMode(int mode)
+        // Logger placeholder (replace with actual implementation)
+        private static class Logger
         {
-            switch (mode)
+            public static void WriteLine(string message)
             {
-                case 1: // turbo
-                    return POWER_TURBO;
-                case 2: //silent
-                    return POWER_SILENT;
-                default: // balanced
-                    return POWER_BALANCED;
+                Console.WriteLine(message);
             }
         }
-
-        public static void SetPowerMode(int mode)
-        {
-            SetPowerMode(GetDefaultPowerMode(mode));
-        }
-
-        public static int GetLidAction(bool ac)
-        {
-            Guid activeSchemeGuid = GetActiveScheme();
-
-            IntPtr activeIndex;
-            if (ac)
-                PowerReadACValueIndex(IntPtr.Zero,
-                     activeSchemeGuid,
-                     GUID_SYSTEM_BUTTON_SUBGROUP,
-                     GUID_LIDACTION, out activeIndex);
-
-            else
-                PowerReadDCValueIndex(IntPtr.Zero,
-                    activeSchemeGuid,
-                    GUID_SYSTEM_BUTTON_SUBGROUP,
-                    GUID_LIDACTION, out activeIndex);
-
-
-            return activeIndex.ToInt32();
-        }
-
-
-        public static void SetLidAction(int action, bool acOnly = false)
-        {
-            /**
-             * 1: Do nothing
-             * 2: Seelp
-             * 3: Hibernate
-             * 4: Shutdown
-             */
-
-            Guid activeSchemeGuid = GetActiveScheme();
-
-            var hrAC = PowerWriteACValueIndex(
-                IntPtr.Zero,
-                activeSchemeGuid,
-                GUID_SYSTEM_BUTTON_SUBGROUP,
-                GUID_LIDACTION,
-                action);
-
-            PowerSetActiveScheme(IntPtr.Zero, activeSchemeGuid);
-
-            if (!acOnly)
-            {
-                var hrDC = PowerWriteDCValueIndex(
-                  IntPtr.Zero,
-                  activeSchemeGuid,
-                  GUID_SYSTEM_BUTTON_SUBGROUP,
-                  GUID_LIDACTION,
-                  action);
-
-                PowerSetActiveScheme(IntPtr.Zero, activeSchemeGuid);
-            }
-
-            Logger.WriteLine("Changed Lid Action to " + action);
-        }
-
-        public static int GetHibernateAfter()
-        {
-            Guid activeSchemeGuid = GetActiveScheme();
-            IntPtr seconds;
-            PowerReadDCValueIndex(IntPtr.Zero,
-                    activeSchemeGuid,
-                    GUID_SLEEP_SUBGROUP,
-                    GUID_HIBERNATEIDLE, out seconds);
-
-            Logger.WriteLine("Hibernate after " + seconds);
-            return (seconds.ToInt32() / 60);
-        }
-
-
-        public static void SetHibernateAfter(int minutes)
-        {
-            int seconds = minutes * 60;
-
-            Guid activeSchemeGuid = GetActiveScheme();
-            var hrAC = PowerWriteDCValueIndex(
-                IntPtr.Zero,
-                activeSchemeGuid,
-                GUID_SLEEP_SUBGROUP,
-                GUID_HIBERNATEIDLE,
-                seconds);
-
-            PowerSetActiveScheme(IntPtr.Zero, activeSchemeGuid);
-
-            Logger.WriteLine("Setting Hibernate after " + seconds + ": " + (hrAC == 0 ? "OK" : hrAC));
-        }
-
-        [DllImport("Kernel32")]
-        private static extern bool GetSystemPowerStatus(SystemPowerStatus sps);
-        public enum ACLineStatus : byte
-        {
-            Offline = 0, Online = 1, Unknown = 255
-        }
-
-        public enum BatteryFlag : byte
-        {
-            High = 1,
-            Low = 2,
-            Critical = 4,
-            Charging = 8,
-            NoSystemBattery = 128,
-            Unknown = 255
-        }
-
-        // Fields must mirror their unmanaged counterparts, in order
-        [StructLayout(LayoutKind.Sequential)]
-        public class SystemPowerStatus
-        {
-            public ACLineStatus ACLineStatus;
-            public BatteryFlag BatteryFlag;
-            public Byte BatteryLifePercent;
-            public Byte SystemStatusFlag;
-            public Int32 BatteryLifeTime;
-            public Int32 BatteryFullLifeTime;
-        }
-
-        public static bool GetBatterySaverStatus()
-        {
-            SystemPowerStatus sps = new SystemPowerStatus();
-            try
-            {
-                GetSystemPowerStatus(sps);
-                return (sps.SystemStatusFlag > 0);
-            }
-            catch (Exception ex)
-            {
-                return false;
-            }
-
-        }
-
     }
 }
